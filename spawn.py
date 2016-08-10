@@ -57,7 +57,7 @@ def doScan(wid, sLat, sLng, api):
 			time.sleep(config['scanDelay'])
 			continue
 		break
-		
+
 	try:
 		cells = response_dict['responses']['GET_MAP_OBJECTS']['map_cells']
 	except TypeError:
@@ -97,25 +97,6 @@ def doScan(wid, sLat, sLng, api):
 						gyms[fort['id']] = gymLog
 	time.sleep(config['scanDelay'])
 
-def genwork():
-	totalwork = 0
-	for rect in config['work']:
-		dlat = 0.00089
-		dlng = dlat / math.cos(math.radians((rect[0]+rect[2])*0.5))
-		startLat = min(rect[0], rect[2])+(0.624*dlat)
-		startLng = min(rect[1], rect[3])+(0.624*dlng)
-		latSteps = int((((max(rect[0], rect[2])-min(rect[0], rect[2])))/dlat)+0.75199999)
-		if latSteps<1:
-			latSteps=1
-		lngSteps = int((((max(rect[1], rect[3])-min(rect[1], rect[3])))/dlng)+0.75199999)
-		if lngSteps<1:
-			lngSteps=1
-		for i in range(latSteps):
-			for j in range(lngSteps):
-				scans.append([startLat+(dlat*i), startLng+(dlng*j)])
-		totalwork += latSteps * lngSteps
-	return totalwork
-
 def worker(wid,Wstart):
 	workStart = min(Wstart,len(scans)-1)
 	workStop = min(Wstart+config['stepsPerPassPerWorker'],len(scans)-1)
@@ -147,8 +128,8 @@ def worker(wid,Wstart):
 	print 'worker {} took {} seconds to do {} pass ending thread'.format(wid,curTime-startTime,num2words[5])
 
 def main():
-	tscans = genwork()
-	print 'total of {} steps'.format(tscans)
+	tscans,tarea = utils.calcwork()
+	print 'total of {} steps covering {} km^2'.format(tscans,tarea)
 	numWorkers = ((tscans-1)//config['stepsPerPassPerWorker'])+1
 	if numWorkers > len(config['users']):
 		numWorkers = len(config['users'])
@@ -157,7 +138,7 @@ def main():
 		print 'error. scan will take more than 10mins so all 6 scans will take more than 1 hour'
 		print 'please try using less scans per worker'
 		return
-#heres the logging setup
+	#heres the logging setup
 	# log settings
 	# log format
 	logging.basicConfig(level=logging.DEBUG, format='%(asctime)s [%(module)10s] [%(levelname)5s] %(message)s')
@@ -167,7 +148,7 @@ def main():
 	logging.getLogger("pgoapi").setLevel(logging.WARNING)
 	# log level for internal pgoapi class
 	logging.getLogger("rpc_api").setLevel(logging.WARNING)
-	
+
 	if config['auth_service'] not in ['ptc', 'google']:
 		log.error("Invalid Auth service specified! ('ptc' or 'google')")
 		return None
@@ -248,3 +229,5 @@ def main():
 
 if __name__ == '__main__':
 	main()
+
+# vim: set ts=4 sw=4 tw=0 noet :
