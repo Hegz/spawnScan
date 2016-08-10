@@ -21,7 +21,7 @@ stops = {}
 gyms = {}
 
 scans = []
-num2words = ['first','second','third','forth','fith','sixth']
+num2words = ['first','second','third','fourth','fifth','sixth']
 
 #config file
 with open('config.json') as file:
@@ -48,7 +48,7 @@ def doScan(wid, sLat, sLng, api):
 			response_dict = api.get_map_objects(latitude = sLat, longitude = sLng, since_timestamp_ms = timestamps, cell_id = cell_ids)
 		except  ServerSideRequestThrottlingException:
 			config['scanDelay'] += 0.5
-			print ('Worker-{} Request throttled, increasing sleep by 0.5 to {}').format(wid,config['scanDelay'])
+			print ('Worker {} Request throttled, increasing sleep by 0.5 to {}').format(wid,config['scanDelay'])
 			time.sleep(config['scanDelay'])
 			continue
 		except:
@@ -117,10 +117,10 @@ def worker(wid,Wstart,numWorkers):
 			doScanp(wid,scans[i][0], scans[i][1], api)
 		curTime=time.time()
 		if 600-(curTime-startTime) > 0:
-			print ('worker {} took {} seconds to do {} pass now sleeping for {}').format(wid,curTime-startTime,j,600-(curTime-startTime))
+			print ('worker {} took {} seconds to do {} pass, now sleeping for {}').format(wid,curTime-startTime,num2words[j],600-(curTime-startTime))
 			time.sleep(600-(curTime-startTime))
 		else:
-			print ('worker {} took {} seconds to do pass so not sleeping').format(wid,curTime-startTime,j)
+			print ('worker {} took {} seconds to do {} pass so not sleeping').format(wid,curTime-startTime,num2words[j])
 	startTime = time.time()
 	print ('worker {} is doing {} pass').format(wid,num2words[5])
 	for i in xrange(workStart,workStop):
@@ -134,7 +134,7 @@ def main():
 	numWorkers = ((tscans-1)//config['stepsPerPassPerWorker'])+1
 	if numWorkers > len(config['users']):
 		numWorkers = len(config['users'])
-	print ('with {} workers, doing {} scans each, would take {} hours').format(numWorkers,config['stepsPerPassPerWorker'],int(math.ceil(float(tscans)/(numWorkers*config['stepsPerPassPerWorker']))))
+	print ('with {} worker(s), doing {} scans each, would take {} hour(s)').format(numWorkers,config['stepsPerPassPerWorker'],int(math.ceil(float(tscans)/(numWorkers*config['stepsPerPassPerWorker']))))
 	if (config['stepsPerPassPerWorker']*config['scanDelay']) > 600:
 		print ('error. scan will take more than 10mins so all 6 scans will take more than 1 hour')
 		print ('please try using less scans per worker')
