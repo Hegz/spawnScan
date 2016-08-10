@@ -48,7 +48,7 @@ def doScan(wid, sLat, sLng, api):
 			response_dict = api.get_map_objects(latitude = sLat, longitude = sLng, since_timestamp_ms = timestamps, cell_id = cell_ids)
 		except  ServerSideRequestThrottlingException:
 			config['scanDelay'] += 0.5
-			print ('kk.. increasing sleep by 0.5 to {}').format(config['scanDelay'])
+			print ('Worker-{} Request throttled, increasing sleep by 0.5 to {}').format(wid,config['scanDelay'])
 			time.sleep(config['scanDelay'])
 			continue
 		except:
@@ -97,46 +97,47 @@ def doScan(wid, sLat, sLng, api):
 						gyms[fort['id']] = gymLog
 	time.sleep(config['scanDelay'])
 
-def worker(wid,Wstart):
+def worker(wid,Wstart,numWorkers):
 	workStart = min(Wstart,len(scans)-1)
 	workStop = min(Wstart+config['stepsPerPassPerWorker'],len(scans)-1)
 	if workStart == workStop:
 		return
-	print 'worker {} is doing steps {} to {}'.format(wid,workStart,workStop)
+	print ('worker {} is doing steps {} to {}').format(wid,workStart,workStop)
+	#Offset worker startup to minimize auto throttle.
+	time.sleep(1*wid)
 	#login
 	api = pgoapi.PGoApi(provider=config['auth_service'], username=config['users'][wid]['username'], password=config['users'][wid]['password'], position_lat=0, position_lng=0, position_alt=0)
 	api.activate_signature(utils.get_encryption_lib_path())
-	time.sleep(0.5)
 	api.get_player()
 	#iterate
 	for j in range(5):
 		startTime = time.time()
-		print 'worker {} is doing {} pass'.format(wid,num2words[j])
+		print ('worker {} is doing {} pass').format(wid,num2words[j])
 		for i in xrange(workStart,workStop):
 			doScanp(wid,scans[i][0], scans[i][1], api)
 		curTime=time.time()
 		if 600-(curTime-startTime) > 0:
-			print 'worker {} took {} seconds to do {} pass now sleeping for {}'.format(wid,curTime-startTime,j,600-(curTime-startTime))
+			print ('worker {} took {} seconds to do {} pass now sleeping for {}').format(wid,curTime-startTime,j,600-(curTime-startTime))
 			time.sleep(600-(curTime-startTime))
 		else:
-			print 'worker {} took {} seconds to do pass so not sleeping'.format(wid,curTime-startTime,j)
+			print ('worker {} took {} seconds to do pass so not sleeping').format(wid,curTime-startTime,j)
 	startTime = time.time()
-	print 'worker {} is doing {} pass'.format(wid,num2words[5])
+	print ('worker {} is doing {} pass').format(wid,num2words[5])
 	for i in xrange(workStart,workStop):
 		doScanp(wid,scans[i][0], scans[i][1], api)
 	curTime=time.time()
-	print 'worker {} took {} seconds to do {} pass ending thread'.format(wid,curTime-startTime,num2words[5])
+	print ('worker {} took {} seconds to do {} pass ending thread').format(wid,curTime-startTime,num2words[5])
 
 def main():
-	tscans,tarea = utils.calcwork()
-	print 'total of {} steps covering {} km^2'.format(tscans,tarea)
+	tscans,tarea = utils.calcwork(scans)
+	print ('total of {} steps covering {} km^2').format(tscans,tarea)
 	numWorkers = ((tscans-1)//config['stepsPerPassPerWorker'])+1
 	if numWorkers > len(config['users']):
 		numWorkers = len(config['users'])
-	print 'with {} workers, doing {} scans each, would take {} hours'.format(numWorkers,config['stepsPerPassPerWorker'],int(math.ceil(tscans/(numWorkers*config['stepsPerPassPerWorker']))))
+	print ('with {} workers, doing {} scans each, would take {} hours').format(numWorkers,config['stepsPerPassPerWorker'],int(math.ceil(float(tscans)/(numWorkers*config['stepsPerPassPerWorker']))))
 	if (config['stepsPerPassPerWorker']*config['scanDelay']) > 600:
-		print 'error. scan will take more than 10mins so all 6 scans will take more than 1 hour'
-		print 'please try using less scans per worker'
+		print ('error. scan will take more than 10mins so all 6 scans will take more than 1 hour')
+		print ('please try using less scans per worker')
 		return
 	#heres the logging setup
 	# log settings
@@ -159,7 +160,7 @@ def main():
 	for i in xrange(len(config['users'])):
 		if scansStarted >= len(scans):
 			break;
-		t = threading.Thread(target=worker, args = (i,scansStarted))
+		t = threading.Thread(target=worker, args = (i,scansStarted,numWorkers))
 		t.start()
 		threads.append(t)
 		scansStarted += config['stepsPerPassPerWorker']
@@ -172,7 +173,7 @@ def main():
 				scansStarted += config['stepsPerPassPerWorker']
 	for t in threads:
 		t.join()
-	print 'all done. saving data'
+	print ('all done. saving data')
 
 	out = []
 	for poke in pokes.values():

@@ -5,8 +5,13 @@ import os
 import sys
 import platform
 import math
+import json
 
-def calcwork():
+with open('config.json') as file:
+	config = json.load(file)
+
+
+def calcwork(scans=[]):
 	totalwork = 0
 	area = 0
 	for rect in config['work']:
@@ -14,6 +19,8 @@ def calcwork():
 		distE = math.radians(max(rect[3], rect[1])-min(rect[3], rect[1]))*6371*math.cos(math.radians((rect[0]+rect[2])*0.5))
 		dlat = 0.00089
 		dlng = dlat / math.cos(math.radians((rect[0]+rect[2])*0.5))
+		startLat = min(rect[0], rect[2])+(0.624*dlat)
+		startLng = min(rect[1], rect[3])+(0.624*dlng)
 		latSteps = int((((max(rect[0], rect[2])-min(rect[0], rect[2])))/dlat)+0.75199999)
 		if latSteps<1:
 			latSteps=1
@@ -21,6 +28,9 @@ def calcwork():
 		if lngSteps<1:
 			lngSteps=1
 		totalwork += latSteps * lngSteps
+		for i in range(latSteps):
+			for j in range(lngSteps):
+				scans.append([startLat+(dlat*i), startLng+(dlng*j)])
 		area += distN * distE
 	return totalwork, area
 
