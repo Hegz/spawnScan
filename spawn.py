@@ -97,18 +97,28 @@ def doScan(wid, sLat, sLng, api):
 						gyms[fort['id']] = gymLog
 	time.sleep(config['scanDelay'])
 
-def worker(wid,Wstart,numWorkers):
+def worker(wid,Wstart):
 	workStart = min(Wstart,len(scans)-1)
 	workStop = min(Wstart+config['stepsPerPassPerWorker'],len(scans)-1)
 	if workStart == workStop:
 		return
 	print ('worker {} is doing steps {} to {}').format(wid,workStart,workStop)
-	#Offset worker startup to minimize auto throttle.
-	time.sleep(1*wid)
 	#login
-	api = pgoapi.PGoApi(provider=config['auth_service'], username=config['users'][wid]['username'], password=config['users'][wid]['password'], position_lat=0, position_lng=0, position_alt=0)
-	api.activate_signature(utils.get_encryption_lib_path())
-	api.get_player()
+	login_attempt = 1
+	logged_in = False
+	while not logged_in:
+
+		api = pgoapi.PGoApi(provider=config['auth_service'], username=config['users'][wid]['username'], password=config['users'][wid]['password'], position_lat=0, position_lng=0, position_alt=0)
+		api.activate_signature(utils.get_encryption_lib_path())
+
+		try:	#Throwing NotLoggedInException
+			api.get_player()
+			logged_in = True
+		except NotLoggedInException:
+			print('thread {} Login Error, retry {}/10').format(wid,login_attempt)
+			login_attempt += 1
+
+	time.sleep(0.5)
 	#iterate
 	for j in range(5):
 		startTime = time.time()
@@ -160,7 +170,10 @@ def main():
 	for i in xrange(len(config['users'])):
 		if scansStarted >= len(scans):
 			break;
-		t = threading.Thread(target=worker, args = (i,scansStarted,numWorkers))
+		#Offset worker startup to minimize auto throttle.
+		time.sleep(1)
+		print ('starting worker {}').format(i)
+		t = threading.Thread(target=worker, args = (i,scansStarted))
 		t.start()
 		threads.append(t)
 		scansStarted += config['stepsPerPassPerWorker']
@@ -168,10 +181,13 @@ def main():
 		time.sleep(15)
 		for i in xrange(len(threads)):
 			if not threads[i].isAlive():
+				#Offset worker startup to minimize auto throttle.
+				time.sleep(1)
 				threads[i] = threading.Thread(target=worker, args = (i,scansStarted))
 				threads[i].start()
 				scansStarted += config['stepsPerPassPerWorker']
 	for t in threads:
+
 		t.join()
 	print ('all done. saving data')
 
